@@ -1,0 +1,30 @@
+variables:
+  rg_name: 'TODO_VAR'
+  sa_acm_reports_name: 'TODO_VAR'
+  sa_ctn_acm_reports_name: 'TODO_VAR'
+
+trigger:
+  branches:
+    include:
+    - refs/heads/main
+  paths:
+    include:
+    - /src/functionapp-create-exports
+    
+jobs:
+- job: Job_1
+  displayName: Agent job 1
+  pool:
+    vmImage: vs2017-win2016
+  steps:
+  - checkout: self
+  - task: replacetokens@3
+    displayName: Replace path in run.ps1
+    inputs:
+      targetFiles: '**/run.ps1'
+      tokenPrefix: '%'
+      tokenSuffix: '%'
+  - task: PublishBuildArtifacts@1
+    displayName: Publish Artifact
+    inputs:
+      PathtoPublish: src/functionapp-create-exports

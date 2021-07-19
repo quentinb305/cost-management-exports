@@ -1,0 +1,24 @@
+trigger:
+  branches:
+    include:
+    - refs/heads/main
+  paths:
+    include:
+    - /src/functionapp-get-po-tag
+    
+jobs:
+- job: Job_1
+  displayName: Agent job 1
+  pool:
+    vmImage: vs2017-win2016
+  steps:
+  - checkout: self
+  - task: Npm@1
+    displayName: npm install
+    inputs:
+      workingDir: src/functionapp-get-po-tag
+      verbose: false
+  - task: PublishBuildArtifacts@1
+    displayName: Publish Artifact
+    inputs:
+      PathtoPublish: src/functionapp-get-po-tag

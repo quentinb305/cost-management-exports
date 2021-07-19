@@ -1,0 +1,22 @@
+trigger:
+  branches:
+    include:
+    - refs/heads/main
+  paths:
+    include:
+    - infra/part-1
+    
+jobs:
+- job: Job_1
+  displayName: Agent job 1
+  pool:
+    vmImage: vs2017-win2016
+  steps:
+  - checkout: self
+  - task: CopyFiles@2
+    displayName: Copy Terraform files to artifact
+    inputs:
+      SourceFolder: infra/part-1
+      TargetFolder: $(build.artifactstagingdirectory)/Infra-p1
+  - task: PublishBuildArtifacts@1
+    displayName: Publish Artifact

@@ -1,0 +1,421 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "type": "string"
+        },
+        "workflows_logicapp_receiver_name": {
+            "type": "String"
+        },
+        "sites_function_externalid": {
+            "type": "String"
+        },
+        "connections_azureblob_externalid": {
+            "type": "String"
+        },
+        "connections_office365_externalid": {
+            "type": "String"
+        },
+        "blob_api_id": {
+            "type": "string"
+        },
+        "o365_api_id": {
+            "type": "string"
+        },
+        "cc_verification_email": {
+            "type": "string"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('workflows_logicapp_receiver_name')]",
+            "location": "[parameters('location')]",
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "Batch_messages": {
+                            "type": "Batch",
+                            "inputs": {
+                                "configurations": {
+                                    "BatchOnName": {
+                                        "releaseCriteria": {
+                                            "recurrence": {
+                                                "frequency": "Minute",
+                                                "interval": 1
+                                            }
+                                        }
+                                    }
+                                },
+                                "mode": "Inline"
+                            }
+                        }
+                    },
+                    "actions": {
+                        "Build_Attachment_Set": {
+                            "foreach": "@body('Parse_JSON_batched_items')",
+                            "actions": {
+                                "Append_to_var_attachments_array_variable": {
+                                    "runAfter": {
+                                        "Get_current_item_blob_content_using_path": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "AppendToArrayVariable",
+                                    "inputs": {
+                                        "name": "var_attachments",
+                                        "value": {
+                                            "ContentBytes": "@base64(body('Get_current_item_blob_content_using_path'))",
+                                            "Name": "@split(body('Parse_JSON_current_item')?['content']?['subject'],'/')[9]"
+                                        }
+                                    }
+                                },
+                                "Get_current_item_blob_content_using_path": {
+                                    "runAfter": {
+                                        "Parse_JSON_current_item": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['azureblob']['connectionId']"
+                                            }
+                                        },
+                                        "method": "get",
+                                        "path": "/datasets/default/GetFileContentByPath",
+                                        "queries": {
+                                            "inferContentType": true,
+                                            "path": "@{split(body('Parse_JSON_current_item')?['content']?['data']?['url'],'.blob.core.windows.net')[1]}",
+                                            "queryParametersSingleEncoded": true
+                                        }
+                                    }
+                                },
+                                "Parse_JSON_current_item": {
+                                    "runAfter": {},
+                                    "type": "ParseJson",
+                                    "inputs": {
+                                        "content": "@items('Build_Attachment_Set')",
+                                        "schema": {
+                                            "properties": {
+                                                "content": {
+                                                    "properties": {
+                                                        "data": {
+                                                            "properties": {
+                                                                "api": {
+                                                                    "type": "string"
+                                                                },
+                                                                "blobType": {
+                                                                    "type": "string"
+                                                                },
+                                                                "clientRequestId": {
+                                                                    "type": "string"
+                                                                },
+                                                                "contentLength": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "contentType": {
+                                                                    "type": "string"
+                                                                },
+                                                                "eTag": {
+                                                                    "type": "string"
+                                                                },
+                                                                "requestId": {
+                                                                    "type": "string"
+                                                                },
+                                                                "sequencer": {
+                                                                    "type": "string"
+                                                                },
+                                                                "storageDiagnostics": {
+                                                                    "properties": {
+                                                                        "batchId": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "type": "object"
+                                                                },
+                                                                "url": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "dataVersion": {
+                                                            "type": "string"
+                                                        },
+                                                        "eventTime": {
+                                                            "type": "string"
+                                                        },
+                                                        "eventType": {
+                                                            "type": "string"
+                                                        },
+                                                        "id": {
+                                                            "type": "string"
+                                                        },
+                                                        "metadataVersion": {
+                                                            "type": "string"
+                                                        },
+                                                        "subject": {
+                                                            "type": "string"
+                                                        },
+                                                        "topic": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "messageId": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Get_ProjectOwner_tag_value": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach"
+                        },
+                        "Create_HTML_table": {
+                            "runAfter": {
+                                "Build_Attachment_Set": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Table",
+                            "inputs": {
+                                "columns": [
+                                    {
+                                        "header": "ResourceGroup",
+                                        "value": "@substring(split(item()?['content']?['data']?['url'],'/')[5],28)"
+                                    },
+                                    {
+                                        "header": "FileName",
+                                        "value": "@split(item()?['content']?['data']?['url'],'/')[7]"
+                                    },
+                                    {
+                                        "header": "SizeKB",
+                                        "value": "@div(int(item()?['content']?['data']?['contentLength']),1000.00)"
+                                    }
+                                ],
+                                "format": "HTML",
+                                "from": "@body('Parse_JSON_batched_items')"
+                            }
+                        },
+                        "Get_ProjectOwner_tag_value": {
+                            "runAfter": {
+                                "Initialize_array_variable_var_attachments": [
+                                    "Succeeded"
+                                ],
+                                "Initialize_string_variable_rg_name": [
+                                    "Succeeded"
+                                ],
+                                "Initialize_string_variable_subscription_id": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Function",
+                            "inputs": {
+                                "function": {
+                                    "id": "[parameters('sites_function_externalid')]"
+                                },
+                                "method": "POST",
+                                "queries": {
+                                    "rgname": "@{variables('rg_name')}",
+                                    "subscriptionid": "@{variables('subscription_id')}"
+                                }
+                            }
+                        },
+                        "Initialize_array_variable_var_attachments": {
+                            "runAfter": {
+                                "Initialize_array_variable_var_file_list": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "var_attachments",
+                                        "type": "array"
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_array_variable_var_file_list": {
+                            "runAfter": {
+                                "Parse_JSON_batched_items": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "var_file_list",
+                                        "type": "array",
+                                        "value": "@body('Parse_JSON_batched_items')"
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_string_variable_rg_name": {
+                            "runAfter": {
+                                "Parse_JSON_batched_items": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "rg_name",
+                                        "type": "string",
+                                        "value": "@{substring(split(string(body('Parse_JSON_batched_items')[0]),'/')[15],28)}"
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_string_variable_subscription_id": {
+                            "runAfter": {
+                                "Parse_JSON_batched_items": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "subscription_id",
+                                        "type": "string",
+                                        "value": "@{split(string(body('Parse_JSON_batched_items')[0]),'/')[2]}"
+                                    }
+                                ]
+                            }
+                        },
+                        "Parse_JSON_batched_items": {
+                            "runAfter": {},
+                            "type": "ParseJson",
+                            "inputs": {
+                                "content": "@triggerBody()['items']",
+                                "schema": {
+                                    "items": {
+                                        "properties": {
+                                            "content": {
+                                                "properties": {
+                                                    "api": {
+                                                        "type": "string"
+                                                    },
+                                                    "blobType": {
+                                                        "type": "string"
+                                                    },
+                                                    "clientRequestId": {
+                                                        "type": "string"
+                                                    },
+                                                    "contentLength": {
+                                                        "type": "integer"
+                                                    },
+                                                    "contentType": {
+                                                        "type": "string"
+                                                    },
+                                                    "eTag": {
+                                                        "type": "string"
+                                                    },
+                                                    "requestId": {
+                                                        "type": "string"
+                                                    },
+                                                    "sequencer": {
+                                                        "type": "string"
+                                                    },
+                                                    "storageDiagnostics": {
+                                                        "properties": {
+                                                            "batchId": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "url": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
+                                            "messageId": {
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": [
+                                            "messageId",
+                                            "content"
+                                        ],
+                                        "type": "object"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "Send_an_email_(V2)": {
+                            "runAfter": {
+                                "Create_HTML_table": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "body": {
+                                    "Attachments": "@variables('var_attachments')",
+                                    "Body": "<p>Hello @{body('Get_ProjectOwner_tag_value')},<br>\n<br>\nPlease find attached your Azure Cost Management reports for @{split(string(body('Parse_JSON_batched_items')[0]),'/')[16]}:<br>\n<br>\n@{body('Create_HTML_table')}<br>\nThank you,<br>\nAzure Team<br>\n<br>\n<em>This is an automated email powered by Azure platform. If any question, please open IT support ticket.</em></p>",
+                                    "Cc": "[parameters('cc_verification_email')]",
+                                    "Subject": "Your Azure Cost Management reports for  @{split(string(body('Parse_JSON_batched_items')[0]),'/')[16]}",
+                                    "To": "@{body('Get_ProjectOwner_tag_value')}"
+                                },
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['office365']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "path": "/v2/Mail"
+                            }
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "azureblob": {
+                                "connectionId": "[parameters('connections_azureblob_externalid')]",
+                                "connectionName": "azureblob",
+                                "id": "[parameters('blob_api_id')]"
+                            },
+                            "office365": {
+                                "connectionId": "[parameters('connections_office365_externalid')]",
+                                "connectionName": "office365",
+                                "id": "[parameters('o365_api_id')]"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

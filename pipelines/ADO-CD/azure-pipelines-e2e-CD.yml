@@ -1,0 +1,291 @@
+variables:
+  subscription_id: 'TODO_VAR'
+  identity_location: 'TODO_VAR'
+  rg_tf_location: 'TODO_VAR'
+  rg_tf_name: 'TODO_VAR'
+  tags: 'ProjectOwner=TODO_VAR'
+  terraform_sa_name: 'TODO_VAR'
+  terraform_sa_ctn_name: 'TODO_VAR'
+  terraform_sa_file_key: 'TODO_VAR'
+  api_blob_name: 'TODO_VAR'
+  api_eventgrid_name: 'TODO_VAR'
+  api_office_name: 'TODO_VAR'
+  rg_tf_state_name: 'TODO_VAR'
+  sa_tf_state_name: 'TODO_VAR'
+  sa_ctn_tf_state_name: 'TODO_VAR'
+  key_tf_state_name: 'TODO_VAR'
+  egt_blob_name: 'TODO_VAR'
+  ai_fa_ce_name: 'TODO_VAR'
+  sa_fa_ce_name: 'TODO_VAR'
+  sa_fs_fa_ce_name: 'TODO_VAR'
+  asp_fa_ce_name: 'TODO_VAR'
+  fa_ce_name: 'TODO_VAR'
+  rg_tag_value: 'TODO_VAR'
+  ai_fa_gpot_name: 'TODO_VAR'
+  sa_fa_gpot_name: 'TODO_VAR'
+  sa_fs_fa_gpot_name: 'TODO_VAR'
+  asp_fa_gpot_name: 'TODO_VAR'
+  fa_gpot_name: 'TODO_VAR'
+  client_id: 'TODO_VAR'
+  client_secret: 'TODO_VAR'
+  tenant_id: 'TODO_VAR'
+  rg_name: 'TODO_VAR'
+  rg_location: 'TODO_VAR'
+  sa_acm_reports_name: 'TODO_VAR'
+  sa_ctn_acm_reports_name: 'TODO_VAR'
+  egt_rg_name: 'TODO_VAR'
+  egs_rg_fa_name: 'TODO_VAR'
+  logicapp_batchreceiver_name: 'TODO_VAR'
+  cc_verification_email: 'TODO_VAR'
+  logicapp_batchsender_name: 'TODO_VAR'
+  egs_blob_wh_name: 'TODO_VAR'
+  ado_project_name: 'TODO_VAR'
+  ado_arm_service_connection: 'TODO_VAR'
+
+trigger: none
+
+resources:
+  pipelines:
+  - pipeline: gov-CI
+    source: gov-CI
+  - pipeline: infra-p1-CI
+    source: infra-p1-CI
+  - pipeline: infra-p2-CI
+    source: infra-p2-CI
+  - pipeline: src-functionapp-create-exports-CI
+    source: src-functionapp-create-exports-CI
+  - pipeline: src-functionapp-get-po-tag-CI
+    source: src-functionapp-get-po-tag-CI
+   
+stages:
+- stage: Stage_1_Init_Governance
+  displayName: 'Init Governance'
+  jobs:
+  - job: Job_Init_Governance
+    displayName: 'Init Governance'
+    pool:
+      vmImage: ubuntu-20.04
+    steps:        
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        source: 'specific'
+        project: '$(ado_project_name)'
+        pipeline: 'gov-CI'
+        runVersion: 'latest'
+        artifact: 'drop'
+        patterns: '**'
+        targetPath: '$(Pipeline.Workspace)'
+    - task: qetza.replacetokens.replacetokens-task.replacetokens@3
+      displayName: 'Replace tokens in files'
+      inputs:
+        rootDirectory: '$(Pipeline.Workspace)/Governance'
+        targetFiles: '*.sh'
+        tokenPrefix: '%'
+        tokenSuffix: '%'
+    - task: AzureCLI@2
+      displayName: 'Azure CLI: deploy Azure Policy 1'
+      inputs:
+        azureSubscription: '$(ado_arm_service_connection)'
+        scriptType: bash
+        scriptPath: '$(Pipeline.Workspace)/Governance/azurepolicy-1.sh'
+    - task: AzureCLI@2
+      displayName: 'Azure CLI: deploy Azure Policy 2'
+      inputs:
+        azureSubscription: '$(ado_arm_service_connection)'
+        scriptType: bash
+        scriptPath: '$(Pipeline.Workspace)/Governance/azurepolicy-2.sh'
+    - task: AzureCLI@2
+      displayName: 'Azure CLI: register Resource Provider'
+      inputs:
+        azureSubscription: '$(ado_arm_service_connection)'
+        scriptType: bash
+        scriptPath: '$(Pipeline.Workspace)/Governance/resourceprovider.sh'
+- stage: Stage_2_Deploy_infra_part_1
+  displayName: 'Deploy Infra Part 1'
+  jobs:
+  - job: Job_Deploy_Required_Terraform_Infrastructure
+    displayName: 'Deploy required Terraform infrastructure'
+    pool:
+      vmImage: ubuntu-20.04
+    steps:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          source: 'specific'
+          project: '$(ado_project_name)'
+          pipeline: 'infra-p1-CI'
+          runVersion: 'latest'
+          artifact: 'drop'
+          patterns: '**'
+          targetPath: '$(Pipeline.Workspace)'
+      - task: qetza.replacetokens.replacetokens-task.replacetokens@3
+        displayName: 'Replace tokens in .sh file'
+        inputs:
+          rootDirectory: '$(Pipeline.Workspace)/Infra-p1/azcli'
+          targetFiles: '*.sh'
+          tokenPrefix: '%'
+          tokenSuffix: '%'
+      - task: AzureCLI@2
+        displayName: 'Azure CLI to deploy required Azure resources'
+        inputs:
+          azureSubscription: '$(ado_arm_service_connection)'
+          scriptType: bash
+          scriptPath: '$(Pipeline.Workspace)/Infra-p1/azcli/resourcegroup-tfstate.sh'
+  - job: Job_Deploy_Infrastructure_Part_1
+    displayName: 'Deploy infrastructure part 1'
+    dependsOn: Job_Deploy_Required_Terraform_Infrastructure
+    pool:
+      vmImage: vs2017-win2016
+    steps:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          source: 'specific'
+          project: '$(ado_project_name)'
+          pipeline: 'infra-p1-CI'
+          runVersion: 'latest'
+          artifact: 'drop'
+          patterns: '**'
+          targetPath: '$(Pipeline.Workspace)'
+      - task: qetza.replacetokens.replacetokens-task.replacetokens@3
+        displayName: 'Replace tokens in terraform files'
+        inputs:
+          rootDirectory: '$(Pipeline.Workspace)/Infra-p1/terraform-p1'
+          targetFiles: '*.tf'
+          tokenPrefix: '__'
+          tokenSuffix: '__'
+      - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+        displayName: 'Install Terraform v1.0.0'
+        inputs:
+          terraformVersion: 1.0.0
+      - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV2@2
+        displayName: 'Terraform: init'
+        inputs:
+          workingDirectory: '$(Pipeline.Workspace)/Infra-p1/terraform-p1'
+          commandOptions: '-no-color'
+          backendServiceArm: '$(ado_arm_service_connection)'
+          backendAzureRmResourceGroupName: '$(rg_tf_name)'
+          backendAzureRmStorageAccountName: '$(terraform_sa_name)'
+          backendAzureRmContainerName: '$(terraform_sa_ctn_name)'
+          backendAzureRmKey: '$(terraform_sa_file_key)'
+      - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV2@2
+        displayName: 'Terraform: validate'
+        inputs:
+          command: validate
+          workingDirectory: '$(Pipeline.Workspace)/Infra-p1/terraform-p1'
+          commandOptions: '-no-color'
+      - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV2@2
+        displayName: 'Terraform: plan'
+        inputs:
+          command: plan
+          workingDirectory: '$(Pipeline.Workspace)/Infra-p1/terraform-p1'
+          commandOptions: '-no-color'
+          environmentServiceNameAzureRM: '$(ado_arm_service_connection)'
+      - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV2@2
+        displayName: 'Terraform : apply'
+        inputs:
+          command: apply
+          workingDirectory: '$(Pipeline.Workspace)/Infra-p1/terraform-p1'
+          commandOptions: '-auto-approve -no-color'
+          environmentServiceNameAzureRM: '$(ado_arm_service_connection)'
+- stage: Stage_3_Deploy_Function_Apps_Src
+  displayName: 'Deploy Function Apps Source Code'
+  jobs:
+    - job: Job_Deploy_Function_App_Create_Exports
+      displayName: 'Deploy Function App Create Exports'
+      pool:
+        vmImage: vs2017-win2016
+      steps:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          source: 'specific'
+          project: '$(ado_project_name)'
+          pipeline: 'src-functionapp-create-exports-CI'
+          runVersion: 'latest'
+          artifact: 'drop'
+          patterns: '**'
+          targetPath: '$(Pipeline.Workspace)'
+      - task: AzureFunctionApp@1
+        displayName: 'Azure Function App Deploy'
+        inputs:
+          azureSubscription: '$(ado_arm_service_connection)'
+          appType: functionApp
+          appName: '$(fa_ce_name)'
+          package: '$(Pipeline.Workspace)'
+    - job: Job_Deploy_Function_App_Get_Project_Owner_Tag
+      displayName: 'Deploy Function App Get Project Owner Tag'
+      pool:
+        vmImage: vs2017-win2016 
+      steps:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          source: 'specific'
+          project: '$(ado_project_name)'
+          pipeline: 'src-functionapp-get-po-tag-CI'
+          runVersion: 'latest'
+          artifact: 'drop'
+          patterns: '**'
+          targetPath: '$(Pipeline.Workspace)'
+      - task: AzureFunctionApp@1
+        displayName: 'Azure Function App Deploy'
+        inputs:
+          azureSubscription: '$(ado_arm_service_connection)'
+          appType: functionApp
+          appName: '$(fa_gpot_name)'
+          package: '$(Pipeline.Workspace)'   
+- stage: Stage_4_Deploy_infra_part_2
+  displayName: 'Deploy Infra Part 2'
+  jobs:
+    - job: Job_Deploy_Infrastructure_Part_2
+      displayName: 'Deploy infrastructure part 2'
+      pool:
+        vmImage: vs2017-win2016
+      steps:
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            source: 'specific'
+            project: '$(ado_project_name)'
+            pipeline: 'infra-p2-CI'
+            runVersion: 'latest'
+            artifact: 'drop'
+            patterns: '**'
+            targetPath: '$(Pipeline.Workspace)'
+        - task: qetza.replacetokens.replacetokens-task.replacetokens@3
+          displayName: 'Replace tokens in terraform files'
+          inputs:
+            rootDirectory: '$(Pipeline.Workspace)/Infra-p2/terraform-p2'
+            targetFiles: '*.tf'
+            tokenPrefix: '__'
+            tokenSuffix: '__'
+        - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+          displayName: 'Install Terraform v1.0.0'
+          inputs:
+            terraformVersion: 1.0.0          
+        - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV2@2
+          displayName: 'Terraform: init'
+          inputs:
+            workingDirectory: '$(Pipeline.Workspace)/Infra-p2/terraform-p2'
+            commandOptions: '-no-color'
+            backendServiceArm: '$(ado_arm_service_connection)'
+            backendAzureRmResourceGroupName: '$(rg_tf_name)'
+            backendAzureRmStorageAccountName: '$(terraform_sa_name)'
+            backendAzureRmContainerName: '$(terraform_sa_ctn_name)'
+            backendAzureRmKey: '$(terraform_sa_file_key)'
+        - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV2@2
+          displayName: 'Terraform: validate'
+          inputs:
+            command: validate
+            workingDirectory: '$(Pipeline.Workspace)/Infra-p2/terraform-p2'
+            commandOptions: '-no-color'
+        - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV2@2
+          displayName: 'Terraform: plan'
+          inputs:
+            command: plan
+            workingDirectory: '$(Pipeline.Workspace)/Infra-p2/terraform-p2'
+            commandOptions: '-no-color'
+            environmentServiceNameAzureRM: '$(ado_arm_service_connection)'
+        - task: ms-devlabs.custom-terraform-tasks.custom-terraform-release-task.TerraformTaskV2@2
+          displayName: 'Terraform : apply'
+          inputs:
+            command: apply
+            workingDirectory: '$(Pipeline.Workspace)/Infra-p2/terraform-p2'
+            commandOptions: '-auto-approve -no-color'
+            environmentServiceNameAzureRM: '$(ado_arm_service_connection)'

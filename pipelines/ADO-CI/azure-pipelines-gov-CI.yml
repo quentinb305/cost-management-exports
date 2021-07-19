@@ -1,0 +1,22 @@
+trigger:
+  branches:
+    include:
+    - refs/heads/main
+  paths:
+    include:
+    - gov
+    
+jobs:
+- job: Job_1
+  displayName: Agent job 1
+  pool:
+    vmImage: vs2017-win2016
+  steps:
+  - checkout: self
+  - task: CopyFiles@2
+    displayName: Copy Files
+    inputs:
+      SourceFolder: gov
+      TargetFolder: $(build.artifactstagingdirectory)/Governance
+  - task: PublishBuildArtifacts@1
+    displayName: Publish Artifact
